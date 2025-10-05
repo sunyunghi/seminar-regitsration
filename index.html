@@ -534,6 +534,21 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -622,6 +637,8 @@
                 <div class="waiting-count">
                     현재 대기 신청자: <strong><span id="waitingCount">불러오는 중...</span>명</strong>
                 </div>
+
+                <div class="error-message" id="errorMessage"></div>
 
                 <form id="seminarForm" onsubmit="submitForm(event)">
                     <div class="form-group">
@@ -740,6 +757,15 @@
             document.getElementById('addQuestionBtn').disabled = false;
         }
 
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.classList.add('active');
+            setTimeout(() => {
+                errorEl.classList.remove('active');
+            }, 5000);
+        }
+
         async function submitForm(event) {
             event.preventDefault();
             
@@ -753,7 +779,7 @@
             const locationOther = location === '기타' ? document.getElementById('locationOtherText').value : '';
             
             if (location === '기타' && !locationOther.trim()) {
-                alert('기타 지역을 입력해주세요.');
+                showError('기타 지역을 입력해주세요.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '신청 완료';
                 return;
@@ -767,7 +793,7 @@
             });
             
             if (questions.length === 0) {
-                alert('최소 1개의 질문을 입력해주세요.');
+                showError('최소 1개의 질문을 입력해주세요.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '신청 완료';
                 return;
@@ -780,29 +806,36 @@
                 questions
             };
             
+            console.log('전송할 데이터:', data);
+            
             try {
                 const response = await fetch(SCRIPT_URL, {
+                    redirect: 'follow',
                     method: 'POST',
-                    mode: 'no-cors',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain',
                     },
                     body: JSON.stringify(data)
                 });
                 
-                // no-cors 모드에서는 response를 읽을 수 없으므로 성공으로 간주
-                console.log('신청 완료:', data);
+                console.log('응답 상태:', response.status);
+                const result = await response.json();
+                console.log('응답 데이터:', result);
                 
-                document.getElementById('formContent').style.display = 'none';
-                document.getElementById('successMessage').classList.add('active');
-                
-                setTimeout(() => {
-                    closeRegistration();
-                }, 3000);
+                if (result.success) {
+                    document.getElementById('formContent').style.display = 'none';
+                    document.getElementById('successMessage').classList.add('active');
+                    
+                    setTimeout(() => {
+                        closeRegistration();
+                    }, 3000);
+                } else {
+                    throw new Error(result.error || '신청 처리 중 오류가 발생했습니다.');
+                }
                 
             } catch (error) {
                 console.error('제출 실패:', error);
-                alert('신청 중 오류가 발생했습니다. 다시 시도해주세요.');
+                showError('신청 중 오류가 발생했습니다: ' + error.message);
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '신청 완료';
             }
